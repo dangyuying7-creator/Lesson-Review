@@ -1,0 +1,288 @@
+/* ============================================================
+   style.css — 课堂授课质量评价系统自定义样式
+   配合 Tailwind CSS CDN 使用
+   ============================================================ */
+
+/* ── 基础重置 ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
+               'Hiragino Sans GB', sans-serif;
+  color: #1F2937;
+}
+
+/* ── 上传区域 ─────────────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed #D1D5DB;
+  border-radius: 12px;
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  background: #F9FAFB;
+  user-select: none;
+}
+.upload-zone:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+}
+.upload-zone.dragover {
+  border-color: #3B82F6;
+  background: #DBEAFE;
+  transform: scale(1.01);
+}
+
+/* ── 手动输入框 ───────────────────────────────────────────── */
+.manual-input {
+  display: block;
+  width: 100%;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  margin-top: 3px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  color: #374151;
+  background: #fff;
+}
+.manual-input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.manual-input::-webkit-inner-spin-button,
+.manual-input::-webkit-outer-spin-button { opacity: 0.5; }
+
+/* ── 表格预览 ─────────────────────────────────────────────── */
+.preview-table {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.preview-table th {
+  background: #F3F4F6;
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #6B7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-table td {
+  padding: 3px 8px;
+  border-top: 1px solid #F3F4F6;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+.preview-table tr:hover td { background: #F9FAFB; }
+
+/* ── 图表容器 ─────────────────────────────────────────────── */
+.chart-container {
+  position: relative;
+  height: 200px;
+  width: 100%;
+}
+.chart-container-sm {
+  position: relative;
+  height: 160px;
+  width: 100%;
+}
+
+/* ── 评级徽章 ─────────────────────────────────────────────── */
+.rating-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  border: 3px solid currentColor;
+  letter-spacing: -1px;
+  transition: all 0.3s;
+}
+
+/* ── 进度条 ───────────────────────────────────────────────── */
+.score-bar-bg {
+  height: 7px;
+  background: #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.score-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 报告输出框 ───────────────────────────────────────────── */
+.report-output {
+  background: #F8FAFC;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.85;
+  color: #374151;
+  max-height: 340px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Courier New', 'Consolas', monospace;
+}
+.report-output::-webkit-scrollbar { width: 4px; }
+.report-output::-webkit-scrollbar-track { background: transparent; }
+.report-output::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 2px; }
+
+/* ── Toast 通知 ───────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1F2937;
+  color: #F9FAFB;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-size: 13px;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  animation: toastIn 0.25s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── 加载动画 ─────────────────────────────────────────────── */
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #E5E7EB;
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 卡片阴影增强 ─────────────────────────────────────────── */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* ── 顶部信息展示块（只读，由 Excel 自动填充）────────────── */
+.info-chip {
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #9CA3AF;
+  background: #F9FAFB;
+  min-width: 72px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.info-chip.filled {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+  color: #1D4ED8;
+}
+
+/* ── 按钮基础样式 ─────────────────────────────────────────── */
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button { cursor: pointer; }
+
+/* ── 移动端适配 ───────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-info {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-info input {
+    width: 100% !important;
+  }
+  .report-output {
+    max-height: 200px;
+    font-size: 11px;
+  }
+  .rating-badge {
+    width: 56px;
+    height: 56px;
+    font-size: 18px;
+  }
+}
+
+/* ── 滚动条全局美化 ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ── 评分格子悬浮 Tooltip ─────────────────────────────────── */
+.has-tip {
+  position: relative;
+  cursor: default;
+}
+.has-tip::before,
+.has-tip::after {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 999;
+}
+/* 气泡主体 */
+.has-tip::before {
+  content: attr(data-tip);
+  bottom: calc(100% + 10px);
+  background: #1E293B;
+  color: #F1F5F9;
+  font-size: 11px;
+  line-height: 1.65;
+  padding: 8px 11px;
+  border-radius: 8px;
+  white-space: pre-line;
+  width: 190px;
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  transform: translateX(-50%) translateY(4px);
+}
+/* 小三角箭头 */
+.has-tip::after {
+  content: '';
+  bottom: calc(100% + 4px);
+  border: 5px solid transparent;
+  border-top-color: #1E293B;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%) translateY(4px);
+}
+.has-tip:hover::before,
+.has-tip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
