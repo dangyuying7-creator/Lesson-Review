@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>销转直播课数据诊断</title>
+  <!-- CDN 依赖（首次使用需联网加载；之后浏览器会缓存，可离线使用） -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- ══════════════ 顶部 Header ══════════════ -->
+  <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+          <span class="text-white text-base font-bold select-none">评</span>
+        </div>
+        <div>
+          <h1 class="text-base font-semibold text-gray-900 leading-tight">销转直播课数据诊断</h1>
+          <p class="text-xs text-gray-400 leading-tight">自动量化评分 · 评论信号识别 · 异常排查报告</p>
+        </div>
+      </div>
+      <span class="text-xs text-gray-300 hidden sm:block">v1.0 · 本地离线版</span>
+    </div>
+  </header>
+
+  <!-- ══════════════ 基础信息栏（自动读取 Excel）══════════════ -->
+  <div class="bg-white border-b border-gray-100">
+    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 py-3">
+      <div class="flex flex-wrap items-center gap-3 header-info">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-400">主讲老师</span>
+          <div id="headerTeacher" class="info-chip">—</div>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-400">学科</span>
+          <div id="headerSubject" class="info-chip">—</div>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-400">年级</span>
+          <div id="headerGrade" class="info-chip">—</div>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-400">星期</span>
+          <div id="headerWeek" class="info-chip">—</div>
+        </div>
+        <span class="text-xs text-gray-300 hidden sm:block">↑ 上传出勤表格后自动填充</span>
+        <button id="btnGenerate" onclick="generateReport()"
+          class="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+                 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-sm
+                 transition-all duration-150 select-none">
+          <span id="btnIcon" class="text-base">▶</span>
+          <span id="btnText">生成评价报告</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 主内容区（三列布局）══════════════ -->
+  <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 py-5">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 main-grid">
+
+      <!-- ══ 左列：文件上传 ══ -->
+      <div class="space-y-4">
+
+        <!-- 评论数据上传 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <span class="inline-flex w-5 h-5 items-center justify-center bg-blue-100 text-blue-600 rounded text-xs font-bold">1</span>
+            课堂评论数据
+          </h2>
+
+          <!-- 模式切换 Tab -->
+          <div class="flex gap-1 mb-3 bg-gray-100 rounded-lg p-1">
+            <button id="tabJson" onclick="switchCommentTab('json')"
+              class="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors bg-white text-gray-700 shadow-sm">
+              粘贴 JSON
+            </button>
+            <button id="tabFile" onclick="switchCommentTab('file')"
+              class="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors text-gray-500">
+              上传文件
+            </button>
+          </div>
+
+          <!-- 文件上传区 -->
+          <div id="commentFilePanel" class="hidden">
+            <div id="commentDropZone" class="upload-zone" onclick="document.getElementById('commentFile').click()">
+              <input id="commentFile" type="file" accept=".csv,.xlsx,.xls" class="hidden" onchange="handleCommentFile(event)" />
+              <div id="commentUploadHint">
+                <div class="text-4xl mb-2 leading-none">📋</div>
+                <p class="text-sm text-gray-600 font-medium">点击或拖拽上传评论表格</p>
+                <p class="text-xs text-gray-400 mt-1">支持 CSV、Excel（.xlsx/.xls）</p>
+                <p class="text-xs text-gray-300 mt-0.5">字段：用户ID · 发言时间 · 评论内容</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- JSON 粘贴区 -->
+          <div id="commentJsonPanel">
+            <textarea id="commentJsonInput"
+              placeholder='粘贴评论 JSON 数据（支持 {"data":{"value":[...]}} 或 [...] 格式）'
+              class="w-full h-28 text-xs border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50 font-mono leading-relaxed"></textarea>
+            <button onclick="parseCommentJson()"
+              class="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white text-xs py-2 rounded-lg font-medium transition-colors">
+              解析 JSON 数据
+            </button>
+          </div>
+
+          <div id="commentPreview" class="hidden mt-3">
+            <div class="flex items-center justify-between mb-2">
+              <span id="commentStatus" class="text-xs text-green-600 font-medium"></span>
+              <button onclick="clearCommentData()"
+                class="text-xs text-gray-400 hover:text-red-500 transition-colors px-1">✕ 清除</button>
+            </div>
+            <div class="overflow-x-auto rounded border border-gray-100">
+              <table id="commentPreviewTable" class="preview-table"></table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 出勤数据上传 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <span class="inline-flex w-5 h-5 items-center justify-center bg-orange-100 text-orange-600 rounded text-xs font-bold">2</span>
+            出勤转化数据
+          </h2>
+
+          <div id="attendanceDropZone" class="upload-zone" onclick="document.getElementById('attendanceFile').click()">
+            <input id="attendanceFile" type="file" accept=".csv,.xlsx,.xls" class="hidden" onchange="handleAttendanceFile(event)" />
+            <div id="attendanceUploadHint">
+              <div class="text-4xl mb-2 leading-none">📊</div>
+              <p class="text-sm text-gray-600 font-medium">点击或拖拽上传出勤表格</p>
+              <p class="text-xs text-gray-400 mt-1">支持 CSV、Excel，或手动填写</p>
+              <p class="text-xs text-gray-300 mt-0.5">自动识别 5min/30min 出勤字段</p>
+            </div>
+          </div>
+
+          <div id="attendancePreview" class="hidden mt-3">
+            <div class="flex items-center justify-between mb-2">
+              <span id="attendanceStatus" class="text-xs text-green-600 font-medium"></span>
+              <button onclick="clearAttendanceData()"
+                class="text-xs text-gray-400 hover:text-red-500 transition-colors px-1">✕ 清除</button>
+            </div>
+            <div class="overflow-x-auto rounded border border-gray-100">
+              <table id="attendancePreviewTable" class="preview-table"></table>
+            </div>
+          </div>
+
+          <!-- 手动填写表单（与 Excel 表头对应）-->
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-xs font-medium text-gray-400 mb-3 flex items-center gap-1">
+              <span>✏️</span> 手动填写 / 上传后核对数值
+            </p>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div>
+                <label class="text-xs text-gray-500">直播出勤5分钟（人）</label>
+                <input id="min5Count" type="number" min="0" placeholder="0" class="manual-input" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">直播出勤5分钟转化率（%）</label>
+                <input id="min5Rate" type="number" min="0" max="100" step="0.01" placeholder="0" class="manual-input" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">直播出勤10分钟（人）</label>
+                <input id="min10Count" type="number" min="0" placeholder="0" class="manual-input" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">直播出勤10分钟转化率（%）</label>
+                <input id="min10Rate" type="number" min="0" max="100" step="0.01" placeholder="0" class="manual-input" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">直播出勤30分钟（人）</label>
+                <input id="min30Count" type="number" min="0" placeholder="0" class="manual-input" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">直播出勤30分钟转化率（%）</label>
+                <input id="min30Rate" type="number" min="0" max="100" step="0.01" placeholder="0" class="manual-input" />
+              </div>
+            </div>
+            <!-- 留存率自动计算展示 -->
+            <div id="retentionCalcRow" class="hidden mt-3 grid grid-cols-2 gap-x-3 gap-y-1">
+              <div class="col-span-2 text-xs text-gray-400 mb-1">↳ 留存率（由人数自动计算）</div>
+              <div>
+                <label class="text-xs text-gray-400">5分钟留存率</label>
+                <div id="ret10Display" class="manual-input text-sm font-semibold bg-gray-50 flex items-center">—</div>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400">30分钟留存率</label>
+                <div id="ret30Display" class="manual-input text-sm font-semibold bg-gray-50 flex items-center">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 同主讲转化率（选填）-->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+            <span class="inline-flex w-5 h-5 items-center justify-center bg-orange-100 text-orange-600 rounded text-xs font-bold">3</span>
+            同主讲转化率
+            <span class="text-xs text-gray-400 font-normal ml-1">（选填 · 满10分）</span>
+          </h2>
+          <p class="text-xs text-gray-400 mb-3 leading-relaxed">
+            上课主讲老师已从出勤表自动读取。填入转化单数后自动计算同主讲占比。
+          </p>
+
+          <!-- 主讲老师展示（从出勤数据自动读取）-->
+          <div class="flex items-center gap-2 mb-3 p-2 bg-gray-50 rounded-lg">
+            <span class="text-xs text-gray-500">上课主讲：</span>
+            <span id="sameTeacherName" class="text-xs font-semibold text-gray-700">—（请先上传出勤数据）</span>
+          </div>
+
+          <!-- 两行输入 -->
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex w-5 h-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold bg-orange-100 text-orange-600">同</span>
+              <span class="flex-1 text-xs text-gray-600">转化到该主讲的单数</span>
+              <input id="stSame" type="number" min="0" placeholder="0"
+                     class="manual-input w-16 text-center flex-shrink-0"
+                     oninput="updateSameTeacherPreview()" />
+              <span class="text-xs text-gray-400 w-4 flex-shrink-0">单</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex w-5 h-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold bg-gray-100 text-gray-500">他</span>
+              <span class="flex-1 text-xs text-gray-600">转化到其他主讲的单数</span>
+              <input id="stOther" type="number" min="0" placeholder="0"
+                     class="manual-input w-16 text-center flex-shrink-0"
+                     oninput="updateSameTeacherPreview()" />
+              <span class="text-xs text-gray-400 w-4 flex-shrink-0">单</span>
+            </div>
+          </div>
+
+          <!-- 图片参考上传 -->
+          <div class="mt-3">
+            <p class="text-xs text-gray-400 mb-1.5">📎 上传 BI 截图（仅作填写参考，系统不自动识别）</p>
+            <div id="stImgZone" class="border border-dashed border-gray-200 rounded-lg p-2 text-center cursor-pointer hover:border-orange-300 hover:bg-orange-50 transition-colors"
+                 onclick="document.getElementById('stImgFile').click()">
+              <input id="stImgFile" type="file" accept="image/*" class="hidden" onchange="handleSameTeacherImg(event)" />
+              <div id="stImgHint" class="text-xs text-gray-400 py-1">点击上传截图</div>
+              <img id="stImgPreview" class="hidden w-full rounded mt-1 max-h-48 object-contain" />
+            </div>
+          </div>
+
+          <!-- 实时预览得分 -->
+          <div id="sameTeacherPreview" class="hidden mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
+            <div class="flex justify-between items-center text-xs mb-1">
+              <span class="text-orange-700 font-semibold">同主讲转化率</span>
+              <span id="stRateDisplay" class="font-bold text-orange-700 text-sm"></span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>本项得分</span>
+              <span id="stScoreDisplay" class="font-semibold text-orange-600"></span>
+            </div>
+          </div>
+
+          <div class="mt-2 flex justify-end">
+            <button onclick="clearSameTeacherData()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">✕ 清除</button>
+          </div>
+        </div>
+
+        <!-- 转化反馈（选填）-->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+            <span class="inline-flex w-5 h-5 items-center justify-center bg-purple-100 text-purple-600 rounded text-xs font-bold">4</span>
+            转化反馈
+            <span class="text-xs text-gray-400 font-normal ml-1">（选填）</span>
+          </h2>
+          <p class="text-xs text-gray-400 mb-3 leading-relaxed">
+            销售课后跟进结果，按老板定义的五档填入人数。未跟进可留空，不影响原有评分。
+          </p>
+
+          <div class="space-y-1.5" id="feedbackTierInputs">
+            <!-- 5档输入行（由 JS 动态渲染） -->
+          </div>
+
+          <!-- 预览得分 -->
+          <div id="feedbackPreview" class="hidden mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
+            <div class="flex justify-between items-center text-xs mb-1">
+              <span class="text-purple-700 font-semibold">转化反馈得分（原始）</span>
+              <span id="feedbackScoreDisplay" class="font-bold text-purple-700 text-sm"></span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>加权平均档次</span>
+              <span id="feedbackAvgDisplay"></span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+              <span>参与计算总人数</span>
+              <span id="feedbackTotalDisplay"></span>
+            </div>
+            <div class="mt-2 pt-2 border-t border-purple-100 text-xs text-gray-400 leading-relaxed">
+              ↳ 本项满分 20 分，与留存（60分）+ 评论（30分）+ 同主讲（10分）归一化后，总分仍为 100 分
+            </div>
+          </div>
+
+          <div class="mt-2 flex justify-end">
+            <button onclick="clearFeedbackData()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">✕ 清除反馈</button>
+          </div>
+        </div>
+
+      </div><!-- / 左列 -->
+
+      <!-- ══ 中列：综合评分 ══ -->
+      <div class="space-y-4">
+
+        <!-- 综合评分 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-4">综合评分</h2>
+
+          <div id="scorePanelPlaceholder" class="text-center py-8 text-xs text-gray-300">
+            点击「生成评价报告」查看评分结果
+          </div>
+
+          <div id="scorePanel" class="hidden">
+            <div class="flex items-center justify-center gap-6 mb-5">
+              <div class="text-center">
+                <div id="totalScoreDisplay" class="text-6xl font-black text-blue-600 leading-none">--</div>
+                <div class="text-xs text-gray-400 mt-2">综合得分 / 100</div>
+              </div>
+              <div id="ratingBadge" class="rating-badge text-2xl font-black">--</div>
+            </div>
+
+            <!-- 留存转化分 -->
+            <div class="mb-1 flex justify-between items-center text-xs">
+              <span class="text-gray-500 font-medium">留存转化分（满60分）</span>
+              <span id="retentionScore" class="font-bold text-gray-700"></span>
+            </div>
+            <div class="score-bar-bg">
+              <div id="retentionBar" class="score-bar bg-blue-500" style="width:0%"></div>
+            </div>
+
+            <!-- 互动评论分 -->
+            <div class="mt-2 mb-1 flex justify-between items-center text-xs">
+              <span class="text-gray-500 font-medium">互动评论分（满30分）</span>
+              <span id="commentScore" class="font-bold text-gray-700"></span>
+            </div>
+            <div class="score-bar-bg">
+              <div id="commentBar" class="score-bar bg-emerald-500" style="width:0%"></div>
+            </div>
+            <!-- 同主讲转化率分 -->
+            <div class="mt-2 mb-1 flex justify-between items-center text-xs">
+              <span class="text-gray-500 font-medium">同主讲转化率（满10分）</span>
+              <span id="sameTeacherScore" class="font-bold text-gray-700">0 / 10</span>
+            </div>
+            <div class="score-bar-bg">
+              <div id="sameTeacherBar" class="score-bar bg-orange-400" style="width:0%"></div>
+            </div>
+
+            <!-- 转化反馈分（有数据时显示）-->
+            <div id="feedbackScoreRow" class="hidden">
+              <div class="mt-2 mb-1 flex justify-between items-center text-xs">
+                <span class="text-gray-500 font-medium">转化反馈分（已归一化）</span>
+                <span id="feedbackScorePanel" class="font-bold text-purple-600"></span>
+              </div>
+              <div class="score-bar-bg">
+                <div id="feedbackBar" class="score-bar bg-purple-400" style="width:0%"></div>
+              </div>
+              <div class="text-xs text-gray-400 mt-1">↑ 总分已按 (留存60+评论30+同主讲10+反馈20=120) 归一化至100分</div>
+            </div>
+
+            <!-- 留存率合格状态 -->
+            <div id="retentionStatusRow" class="grid grid-cols-2 gap-2 mt-4 text-xs hidden">
+              <div id="ret10Card" class="rounded-lg p-2.5 has-tip"
+                data-tip="合格线：≥ 90%&#10;公式：10分钟人数 ÷ 5分钟人数&#10;仅做合格判断，不影响分数">
+                <div class="text-gray-400 text-xs">5分钟留存率</div>
+                <div id="ret10Value" class="font-bold text-base mt-0.5"></div>
+                <div id="ret10Badge" class="text-xs mt-0.5"></div>
+              </div>
+              <div id="ret30Card" class="rounded-lg p-2.5 has-tip"
+                data-tip="合格线：≥ 60%&#10;公式：30分钟人数 ÷ 10分钟人数&#10;仅做合格判断，不影响分数">
+                <div class="text-gray-400 text-xs">30分钟留存率</div>
+                <div id="ret30Value" class="font-bold text-base mt-0.5"></div>
+                <div id="ret30Badge" class="text-xs mt-0.5"></div>
+              </div>
+            </div>
+
+            <!-- 六项子分（留存转化4项 + 评论2项）-->
+            <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+              <div class="bg-blue-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：20 分&#10;公式：10分钟人数 ÷ 5分钟人数&#10;≥ 90% → 20 分&#10;&lt; 90% → 20 × 留存率">
+                <div class="text-gray-400 text-xs">5分钟留存率得分</div>
+                <div id="scoreRet5" class="font-bold text-blue-700 text-base mt-0.5"></div>
+              </div>
+              <div class="bg-blue-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：25 分&#10;公式：30分钟人数 ÷ 10分钟人数&#10;≥ 60% → 25 分&#10;&lt; 60% → 25 × (留存率 ÷ 60%)">
+                <div class="text-gray-400 text-xs">30分钟留存率得分</div>
+                <div id="scoreRet30" class="font-bold text-blue-700 text-base mt-0.5"></div>
+              </div>
+              <div id="scoreConv5Card" class="bg-blue-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：5 分（分学科动态标准）&#10;录入出勤数据后自动匹配学科阶梯">
+                <div id="labelConv5" class="text-gray-400 text-xs">5分钟转化率得分</div>
+                <div id="scoreConv5" class="font-bold text-blue-700 text-base mt-0.5"></div>
+              </div>
+              <div id="scoreConv30Card" class="bg-blue-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：10 分（分学科动态标准）&#10;录入出勤数据后自动匹配学科阶梯">
+                <div id="labelConv30" class="text-gray-400 text-xs">30分钟转化率得分</div>
+                <div id="scoreConv30" class="font-bold text-blue-700 text-base mt-0.5"></div>
+              </div>
+              <div class="bg-emerald-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：10 分&#10;满分线 = 5分钟出勤人数（1人1条即满分）&#10;实际有效评论 ≥ 满分线 → 10 分&#10;否则 → 10 × (实际 ÷ 满分线)">
+                <div class="text-gray-400 text-xs">有效评论数得分</div>
+                <div id="scoreCommentCount" class="font-bold text-emerald-700 text-base mt-0.5"></div>
+              </div>
+              <div class="bg-emerald-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：20 分&#10;口径：正面 ÷ (正面 + 负面)&#10;负面 ≥ 正面 → 直接 0 分&#10;正面 > 负面且 ≥ 90% → 20 分&#10;正面 > 负面且 &lt; 90% → 20 × 实际占比%">
+                <div class="text-gray-400 text-xs">好差评比得分</div>
+                <div id="scoreCommentRatio" class="font-bold text-emerald-700 text-base mt-0.5"></div>
+              </div>
+              <!-- 同主讲转化率子分卡 -->
+              <div id="scoreSameTeacherCard" class="bg-orange-50 rounded-lg p-2.5 has-tip col-span-2"
+                data-tip="满分：10 分&#10;同主讲占比 = 转化到上课主讲单数 ÷ 总转化单数&#10;≥90%→10分  ≥75%→8分  ≥60%→5分  ≥40%→2分  &lt;40%→0分&#10;未填写则得 0 分">
+                <div class="text-gray-400 text-xs">同主讲转化率得分</div>
+                <div id="scoreSameTeacher" class="font-bold text-orange-600 text-base mt-0.5">0 / 10&emsp;<span class="text-xs text-gray-400 font-normal">（未填写）</span></div>
+              </div>
+              <!-- 转化反馈子分（有数据时显示，全宽）-->
+              <div id="scoreFeedbackCard" class="hidden col-span-2 bg-purple-50 rounded-lg p-2.5 has-tip"
+                data-tip="满分：20 分（原始）&#10;加权平均 avg = Σ(档次×人数) ÷ 总人数&#10;得分 = (avg-1)/4 × 20&#10;归一化后纳入100分总分">
+                <div class="text-gray-400 text-xs">转化反馈得分（原始20分制）</div>
+                <div id="scoreFeedback" class="font-bold text-purple-700 text-base mt-0.5"></div>
+              </div>
+            </div>
+
+            <!-- 评级说明 -->
+            <div class="mt-3 text-xs text-gray-400 border-t border-gray-100 pt-3 leading-5">
+              评级标准：S≥90（优秀）/ A≥80（良好）/ B≥70（合格）/ C&lt;70（待改进）
+            </div>
+          </div>
+        </div>
+
+        <!-- 出勤留存漏斗 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-3">出勤留存漏斗</h2>
+          <div class="chart-container">
+            <canvas id="attendanceChart"></canvas>
+          </div>
+          <p id="chartPlaceholder" class="text-xs text-gray-300 text-center py-8">上传出勤数据后显示图表</p>
+        </div>
+
+        <!-- 出勤指标卡片 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-4">出勤数据指标</h2>
+          <div id="metricCards" class="grid grid-cols-2 gap-3">
+            <div class="col-span-2 text-center py-6 text-xs text-gray-300">
+              填写出勤数据后显示
+            </div>
+          </div>
+        </div>
+
+      </div><!-- / 中列 -->
+
+      <!-- ══ 右列：评论分布 + 评价分析 + 完整报告 ══ -->
+      <div class="space-y-4">
+
+        <!-- 评论分布统计（仅数字卡，无饼图）-->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-3">评论分布统计</h2>
+          <div id="commentDistribution">
+            <p class="text-xs text-gray-300 text-center py-6">上传评论数据后显示</p>
+          </div>
+        </div>
+
+        <!-- 讲课评价分析 -->
+        <div class="card p-5">
+          <h2 class="text-sm font-semibold text-gray-700 mb-3">讲课评价分析</h2>
+          <div id="analysisPlaceholder" class="text-center py-6 text-xs text-gray-300">
+            生成报告后显示优缺点分析
+          </div>
+          <div id="analysisContent" class="hidden space-y-4">
+            <div>
+              <h3 class="text-xs font-semibold text-emerald-700 mb-2">✅ 讲课优点</h3>
+              <ul id="strengthsList" class="space-y-0.5"></ul>
+            </div>
+            <div>
+              <h3 class="text-xs font-semibold text-red-500 mb-2">⚠️ 不足之处</h3>
+              <ul id="weaknessesList" class="space-y-0.5"></ul>
+            </div>
+            <div>
+              <h3 class="text-xs font-semibold text-blue-600 mb-2">🔍 请老师自查</h3>
+              <div id="suggestionsList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 完整报告输出 -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-gray-700">完整评价报告</h2>
+            <div class="flex gap-2">
+              <button id="btnCopy" onclick="copyReport()" disabled
+                class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                📋 复制
+              </button>
+              <button id="btnExport" onclick="exportTXT()" disabled
+                class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                ⬇️ 导出TXT
+              </button>
+            </div>
+          </div>
+          <div id="reportOutput" class="report-output">
+            <span style="color:#CBD5E1;font-size:12px">报告将在生成后显示于此处...</span>
+          </div>
+        </div>
+
+      </div><!-- / 右列 -->
+    </div><!-- / 主网格 -->
+  </div><!-- / 容器 -->
+
+  <!-- ══ Toast 通知 ══ -->
+  <div id="toast" class="toast hidden">
+    <span id="toastMsg"></span>
+  </div>
+
+  <!-- ══ 加载遮罩 ══ -->
+  <div id="loadingOverlay"
+    class="hidden fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl p-6 shadow-2xl flex items-center gap-4">
+      <div class="spinner"></div>
+      <span class="text-sm text-gray-600 font-medium">正在分析数据，请稍候...</span>
+    </div>
+  </div>
+
+  <!-- ══ JS 模块（顺序加载）══ -->
+  <script src="js/config.js"></script>
+  <script src="js/analyzer.js"></script>
+  <script src="js/scorer.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
